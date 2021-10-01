@@ -1,6 +1,7 @@
 from typing import Any, Callable, List, Mapping, Optional
 
 from aiotruenas_client import CachingMachine as Machine
+from aiotruenas_client.dataset import Dataset, DatasetType
 from aiotruenas_client.disk import Disk, DiskType
 from aiotruenas_client.pool import Pool
 from homeassistant.components.sensor import DEVICE_CLASS_TEMPERATURE
@@ -12,9 +13,20 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import slugify
 
-from . import TrueNASDiskEntity, TrueNASPoolEntity, TrueNASSensor
-from .const import ATTR_POOL_GUID, ATTR_POOL_NAME, DOMAIN
-
+from . import TrueNASDiskEntity, TrueNASPoolEntity, TrueNASDatasetEntity, TrueNASSensor
+from .const import (
+    ATTR_DATASET_GUID,
+    ATTR_DATASET_TYPE, 
+    ATTR_DATASET_POOL, 
+    ATTR_DATASET_COMMENTS, 
+    ATTR_DATASET_USED_BYTTES, 
+    ATTR_DATASET_AVAILABLE_BYTES, 
+    ATTR_DATASET_TOTAL_BYTES, 
+    ATTR_DATASET_COMPRESSION_RATIO, 
+    ATTR_POOL_GUID, 
+    ATTR_POOL_NAME, 
+    DOMAIN
+)
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -41,6 +53,9 @@ def _create_entities(hass: HomeAssistant, entry: ConfigEntry) -> List[Entity]:
 
     for disk in machine.disks:
         entities.append(DiskTemperatureSensor(entry, name, disk, coordinator))
+
+    for dataset in machine.datasets:
+        entities.append(DatasetSensor(entry, name, dataset, coordinator))
 
     for pool in machine.pools:
         entities.append(PoolSensor(entry, name, pool, coordinator))
@@ -136,3 +151,88 @@ class PoolSensor(TrueNASPoolEntity, TrueNASSensor, Entity):
         if not isinstance:
             return None
         return self._pool.status.name
+
+
+class DatasetSensor(TrueNASDatasetEntity, TrueNASSensor, Entity):
+    _dataset: Dataset
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        name: str,
+        dataset: Dataset,
+        coordinator: DataUpdateCoordinator,
+    ) -> None:
+        self._dataset = dataset
+        super().__init__(entry, name, coordinator)
+
+    @property
+    def unique_id(self):
+        """Return the Unique ID of the dataset."""
+        return slugify(self._dataset.id)
+
+    @property
+    def type(self) -> DatasetType:
+        """The type of the dataset."""
+        return f"{self._dataset.tyoe}"
+
+    @property
+    def comments(self) -> Optional[str]:
+        """The user-provided comments on the dataset."""
+        return f"{self._dataset.comments}"
+
+    @property
+    def pool_name(self) -> str:
+        """Return the pool name of the dataset."""
+        return f"{self._dataset.pool_name}"
+
+    @property
+    def pool_name(self) -> str:
+        """Return the pool name of the dataset."""
+        return f"{self._dataset.pool_name}"
+
+    @property
+    def available_bytes(self) -> int:
+        """The number of available bytes in the dataset."""
+        return self._dataset.available_bytes
+
+    @property
+    def used_bytes(self) -> int:
+        """The number of used bytes in the dataset."""
+        return self._dataset.used_bytes
+
+    @property
+    def total_bytes(self) -> int:
+        """The number of bytes storable in the dataset."""
+        return self._dataset.total_bytes
+
+    @property
+    def compression_ratio(self) -> float:
+        """The compression ratio of the dataset."""
+        return self._dataset.compression_ratio
+
+    @property
+    def extra_state_attributes(self):
+        """Return extra Dataset attributes"""
+        assert self._dataset is not None
+        return {
+            ATTR_DATASET_TYPE: f"{self._dataset.type}",
+            ATTR_DATASET_GUID: f"{self._dataset.id}",
+            ATTR_DATASET_POOL: f"{self._dataset.pool_name}",
+            ATTR_DATASET_COMMENTS: f"{self._dataset.comments}",
+            ATTR_DATASET_USED_BYTTES: f"{self._dataset.used_bytes}",
+            ATTR_DATASET_AVAILABLE_BYTES: f"{self._dataset.available_bytes}",
+            ATTR_DATASET_TOTAL_BYTES: f"{self._dataset.total_bytes}",
+            ATTR_DATASET_COMPRESSION_RATIO: f"{self._dataset.compression_ratio}"
+        }
+
+    @property
+    def icon(self):
+        """Return an icon for the dataset."""
+        return "hass:folder"
+
+    def _get_state(self) -> Optional[int]:
+        """Returns the total bytes of the dataset."""
+        if self.available:
+            return self._dataset.total_bytes
+        return None

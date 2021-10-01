@@ -11,6 +11,7 @@ import voluptuous as vol
 from aiotruenas_client import CachingMachine as Machine
 from aiotruenas_client.websockets.disk import CachingDisk
 from aiotruenas_client.websockets.jail import CachingJail
+from aiotruenas_client.websockets.dataset import CachingDataset
 from aiotruenas_client.websockets.pool import CachingPool
 from aiotruenas_client.websockets.virtualmachine import CachingVirtualMachine
 from homeassistant.config_entries import ConfigEntry
@@ -77,6 +78,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         machine.get_disks(include_temperature=True),
                         machine.get_jails(),
                         machine.get_pools(),
+                        machine.get_datasets(),
                         machine.get_vms(),
                     )
                 except Exception as exc:
@@ -205,6 +207,34 @@ class TrueNASSensor(TrueNASEntity):
     def state(self) -> Any:
         """Return the state of the sensor."""
         return self._get_state()
+
+
+class TrueNASDatasetEntity:
+    """Represents a dataset on the TrueNAS host."""
+
+    _dataset: Optional[CachingDataset] = None
+
+    @property
+    def available(self) -> bool:
+        assert self._dataset is not None
+        return True
+
+    @property
+    def device_info(self):
+        assert self._dataset is not None
+        return {
+            "identifiers": {
+                (DOMAIN, slugify(self._dataset.id)),
+            },
+            "type": self._dataset.type,
+            "pool": self._dataset.pool_name,
+            "manufacturer": f"TrueNAS",
+        }
+
+    @property
+    def unique_id(self):
+        assert self._dataset is not None
+        return self._dataset.id
 
 
 class TrueNASDiskEntity:
